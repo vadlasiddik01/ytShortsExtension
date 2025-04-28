@@ -2,11 +2,24 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import { useBlockerContext } from '@/context/BlockerContext';
-import { isChromeExtension } from '@/lib/utils';
+import { isChromeExtension, getExtensionVersion } from '@/lib/utils';
+import { BarChart } from 'lucide-react';
 
 export default function ShortsBlocker() {
-  const { isHideShortsEnabled, isBlockShortsEnabled, isExtensionActive, toggleHideShorts, toggleBlockShorts } = useBlockerContext();
+  const { 
+    isHideShortsEnabled, 
+    isBlockShortsEnabled, 
+    isExtensionActive, 
+    useStatistics,
+    statistics,
+    customFilters,
+    categoryFilters,
+    whitelist,
+    toggleHideShorts, 
+    toggleBlockShorts 
+  } = useBlockerContext();
   const [isMinimized, setIsMinimized] = useState(false);
 
   // Determine status class based on active state
@@ -190,9 +203,51 @@ export default function ShortsBlocker() {
         </div>
       </div>
 
+      {/* Advanced Features Overview */}
+      {useStatistics && (
+        <div className="mt-5 pt-3 border-t border-gray-200">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium">Statistics</h3>
+            <BarChart className="h-4 w-4 text-gray-400" />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="p-2 bg-gray-50 rounded text-center">
+              <div className="text-xs text-gray-500">Blocked</div>
+              <div className="font-bold text-red-500">{statistics.shortsBlocked}</div>
+            </div>
+            <div className="p-2 bg-gray-50 rounded text-center">
+              <div className="text-xs text-gray-500">Hidden</div>
+              <div className="font-bold text-blue-500">{statistics.shortsHidden}</div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Advanced Features */}
+      <div className="mt-2">
+        <div className="flex flex-wrap gap-1">
+          {customFilters.length > 0 && (
+            <Badge variant="outline" className="text-xs">
+              {customFilters.length} Custom Filters
+            </Badge>
+          )}
+          {categoryFilters.length > 0 && (
+            <Badge variant="outline" className="text-xs">
+              {categoryFilters.length} Category Filters
+            </Badge>
+          )}
+          {whitelist.length > 0 && (
+            <Badge variant="outline" className="text-xs">
+              {whitelist.length} Whitelisted
+            </Badge>
+          )}
+        </div>
+      </div>
+
       {/* Footer */}
       <div className="mt-4 pt-3 border-t border-gray-200 flex justify-between items-center text-xs text-gray-500">
-        <div>v1.0.0</div>
+        <div>v1.2.0</div>
         <button 
           className="text-[#FF0000] hover:underline"
           onClick={handleAdvancedOptionsClick}

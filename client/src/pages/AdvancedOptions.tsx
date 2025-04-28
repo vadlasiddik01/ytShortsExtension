@@ -1,15 +1,41 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { useBlockerContext } from '@/context/BlockerContext';
 import { getExtensionVersion } from '@/lib/utils';
+import { Trash2, Plus, ArrowLeft, Clock, BarChart, Filter, Star } from 'lucide-react';
+import { formatDistance } from 'date-fns';
 
 export default function AdvancedOptions() {
-  const { isHideShortsEnabled, isBlockShortsEnabled, toggleHideShorts, toggleBlockShorts } = useBlockerContext();
-  const [version, setVersion] = React.useState('1.0.0');
+  const { 
+    isHideShortsEnabled, 
+    isBlockShortsEnabled, 
+    useStatistics,
+    customFilters,
+    categoryFilters,
+    whitelist,
+    statistics,
+    
+    toggleHideShorts, 
+    toggleBlockShorts,
+    toggleStatistics,
+    addCustomFilter,
+    updateCustomFilter,
+    removeCustomFilter,
+    addCategoryFilter,
+    removeCategoryFilter,
+    removeFromWhitelist,
+    resetStatistics
+  } = useBlockerContext();
+  
+  const [version, setVersion] = useState('1.0.0');
+  const [newFilter, setNewFilter] = useState('');
+  const [newCategory, setNewCategory] = useState('');
 
   React.useEffect(() => {
     // Get the extension version
@@ -76,12 +102,265 @@ export default function AdvancedOptions() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="about" className="mb-6">
-        <TabsList className="grid w-full grid-cols-3">
+      <Tabs defaultValue="features" className="mb-6">
+        <TabsList className="grid w-full grid-cols-7">
+          <TabsTrigger value="features">Features</TabsTrigger>
+          <TabsTrigger value="filters">
+            <Filter className="h-4 w-4 mr-1" />
+            Filters
+          </TabsTrigger>
+          <TabsTrigger value="categories">Categories</TabsTrigger>
+          <TabsTrigger value="whitelist">
+            <Star className="h-4 w-4 mr-1" />
+            Whitelist
+          </TabsTrigger>
+          <TabsTrigger value="stats">
+            <BarChart className="h-4 w-4 mr-1" />
+            Stats
+          </TabsTrigger>
           <TabsTrigger value="about">About</TabsTrigger>
           <TabsTrigger value="help">Help</TabsTrigger>
-          <TabsTrigger value="privacy">Privacy</TabsTrigger>
         </TabsList>
+        
+        {/* Features Tab */}
+        <TabsContent value="features" className="p-4 bg-white rounded-md shadow-sm mt-2 border">
+          <h3 className="text-lg font-medium mb-2">Extension Features</h3>
+          <div className="space-y-4">
+            <div className="p-3 border rounded-md">
+              <h4 className="font-medium">Hide Shorts</h4>
+              <p className="text-gray-600">Visually hides Shorts content from the YouTube interface</p>
+            </div>
+            <div className="p-3 border rounded-md">
+              <h4 className="font-medium">Block Shorts</h4>
+              <p className="text-gray-600">Prevents navigation to Shorts content by intercepting clicks</p>
+            </div>
+            <div className="p-3 border rounded-md">
+              <h4 className="font-medium">Custom Filters</h4>
+              <p className="text-gray-600">Create your own content filters based on text patterns</p>
+            </div>
+            <div className="p-3 border rounded-md">
+              <h4 className="font-medium">Category Filters</h4>
+              <p className="text-gray-600">Filter videos by their category (e.g., Gaming, Music)</p>
+            </div>
+            <div className="p-3 border rounded-md">
+              <h4 className="font-medium">Usage Statistics</h4>
+              <p className="text-gray-600">Track how many Shorts have been blocked or hidden</p>
+            </div>
+            <div className="p-3 border rounded-md">
+              <h4 className="font-medium">Whitelist</h4>
+              <p className="text-gray-600">Allow specific Shorts videos that you want to watch</p>
+            </div>
+          </div>
+        </TabsContent>
+        
+        {/* Custom Filters Tab */}
+        <TabsContent value="filters" className="p-4 bg-white rounded-md shadow-sm mt-2 border">
+          <h3 className="text-lg font-medium mb-4">Custom Content Filters</h3>
+          <div className="flex mb-6">
+            <Input 
+              placeholder="Enter filter pattern (e.g. 'Minecraft Shorts')" 
+              value={newFilter}
+              onChange={(e) => setNewFilter(e.target.value)}
+              className="mr-2"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newFilter.trim()) {
+                  addCustomFilter(newFilter.trim());
+                  setNewFilter('');
+                }
+              }}
+            />
+            <Button onClick={() => {
+              if (newFilter.trim()) {
+                addCustomFilter(newFilter.trim());
+                setNewFilter('');
+              }
+            }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Filter
+            </Button>
+          </div>
+          
+          <div className="space-y-4">
+            {customFilters.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No custom filters added yet.</p>
+            ) : (
+              customFilters.map(filter => (
+                <div key={filter.id} className="flex items-center justify-between p-3 border rounded-md">
+                  <div className="flex items-center">
+                    <Switch 
+                      checked={filter.enabled}
+                      onCheckedChange={(checked) => updateCustomFilter(filter.id, filter.pattern, checked)}
+                      className="mr-3 data-[state=checked]:bg-[#FF0000]"
+                    />
+                    <span>{filter.pattern}</span>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => removeCustomFilter(filter.id)}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+          
+          <div className="mt-6 text-sm text-gray-500">
+            <p>Custom filters will apply content-based filtering using the patterns you specify.</p>
+          </div>
+        </TabsContent>
+        
+        {/* Category Filters Tab */}
+        <TabsContent value="categories" className="p-4 bg-white rounded-md shadow-sm mt-2 border">
+          <h3 className="text-lg font-medium mb-4">Category Filters</h3>
+          <div className="flex mb-6">
+            <Input 
+              placeholder="Enter category name (e.g. 'Gaming', 'Music')" 
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              className="mr-2"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newCategory.trim()) {
+                  addCategoryFilter(newCategory.trim());
+                  setNewCategory('');
+                }
+              }}
+            />
+            <Button onClick={() => {
+              if (newCategory.trim()) {
+                addCategoryFilter(newCategory.trim());
+                setNewCategory('');
+              }
+            }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Category
+            </Button>
+          </div>
+          
+          <div className="flex flex-wrap gap-2">
+            {categoryFilters.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No category filters added yet.</p>
+            ) : (
+              categoryFilters.map(category => (
+                <Badge key={category} className="flex items-center gap-1 px-3 py-1">
+                  {category}
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-4 w-4 p-0 ml-1"
+                    onClick={() => removeCategoryFilter(category)}
+                  >
+                    <Trash2 className="h-3 w-3 text-red-500" />
+                  </Button>
+                </Badge>
+              ))
+            )}
+          </div>
+          
+          <div className="mt-6 text-sm text-gray-500">
+            <p>Common YouTube categories include: Gaming, Music, Sports, Entertainment, How-to, News, and Technology</p>
+          </div>
+        </TabsContent>
+        
+        {/* Whitelist Tab */}
+        <TabsContent value="whitelist" className="p-4 bg-white rounded-md shadow-sm mt-2 border">
+          <h3 className="text-lg font-medium mb-4">Shorts Whitelist</h3>
+          
+          <div className="space-y-4">
+            {whitelist.length === 0 ? (
+              <div className="text-center p-6 border border-dashed rounded-md">
+                <Star className="h-8 w-8 mx-auto mb-2 text-yellow-500" />
+                <p className="text-sm text-muted-foreground">
+                  No Shorts videos in whitelist yet.
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Whitelist Shorts directly from YouTube by right-clicking on a Shorts video 
+                  and selecting "Add to Whitelist" from the context menu.
+                </p>
+              </div>
+            ) : (
+              whitelist.map(shortsId => (
+                <div key={shortsId} className="flex items-center justify-between p-3 border rounded-md">
+                  <a 
+                    href={`https://www.youtube.com/shorts/${shortsId}`} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="text-blue-500 hover:underline"
+                  >
+                    Shorts ID: {shortsId}
+                  </a>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => removeFromWhitelist(shortsId)}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+          
+          <div className="mt-6 text-sm text-gray-500">
+            <p>Whitelisted Shorts will not be blocked or hidden when you're browsing YouTube.</p>
+          </div>
+        </TabsContent>
+        
+        {/* Statistics Tab */}
+        <TabsContent value="stats" className="p-4 bg-white rounded-md shadow-sm mt-2 border">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium">Usage Statistics</h3>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-500">Enable Statistics</span>
+              <Switch 
+                checked={useStatistics} 
+                onCheckedChange={toggleStatistics} 
+                className="data-[state=checked]:bg-[#FF0000]"
+              />
+            </div>
+          </div>
+          
+          {useStatistics ? (
+            <>
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="p-4 border rounded-md text-center">
+                  <h4 className="text-sm font-medium mb-1">Shorts Blocked</h4>
+                  <p className="text-3xl font-bold text-red-600">{statistics.shortsBlocked}</p>
+                </div>
+                <div className="p-4 border rounded-md text-center">
+                  <h4 className="text-sm font-medium mb-1">Shorts Hidden</h4>
+                  <p className="text-3xl font-bold text-blue-600">{statistics.shortsHidden}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+                <div className="flex items-center">
+                  <Clock className="h-4 w-4 mr-1" />
+                  <span>Last reset: {statistics.lastReset ? formatDistance(new Date(statistics.lastReset), new Date(), { addSuffix: true }) : 'Never'}</span>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={resetStatistics}
+                >
+                  Reset Statistics
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="p-6 text-center border border-dashed rounded-md">
+              <BarChart className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+              <p className="text-gray-500">Statistics tracking is currently disabled.</p>
+              <p className="text-sm text-gray-400 mt-2">Enable it to track how many Shorts are being blocked and hidden.</p>
+            </div>
+          )}
+          
+          <div className="mt-4 text-sm text-gray-500">
+            <p>Statistics are stored locally and never sent to any server.</p>
+          </div>
+        </TabsContent>
+        
         <TabsContent value="about" className="p-4 bg-white rounded-md shadow-sm mt-2 border">
           <h3 className="text-lg font-medium mb-2">About YouTube Shorts Blocker</h3>
           <p className="mb-4">YouTube Shorts Blocker is a browser extension designed to help users take control of their YouTube experience by removing distracting Shorts content.</p>
