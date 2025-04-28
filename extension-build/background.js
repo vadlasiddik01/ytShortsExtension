@@ -1,55 +1,5 @@
 "use strict";
 (() => {
-  var __getOwnPropNames = Object.getOwnPropertyNames;
-  var __esm = (fn, res) => function __init() {
-    return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
-  };
-
-  // client/public/hot-reload.js
-  var hot_reload_exports = {};
-  var filesInDirectory, timestampForFilesInDirectory, reload, watchChanges;
-  var init_hot_reload = __esm({
-    "client/public/hot-reload.js"() {
-      "use strict";
-      filesInDirectory = (dir) => new Promise(
-        (resolve) => dir.createReader().readEntries((entries) => {
-          Promise.all(entries.filter((e) => e.name[0] !== ".").map(
-            (e) => e.isDirectory ? filesInDirectory(e) : new Promise((resolve2) => e.file(resolve2))
-          )).then((files) => [].concat(...files)).then(resolve);
-        })
-      );
-      timestampForFilesInDirectory = (dir) => filesInDirectory(dir).then((files) => files.map((f) => f.name + f.lastModifiedDate).join());
-      reload = () => {
-        chrome.runtime.reload();
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-          if (tabs[0]) {
-            chrome.tabs.reload(tabs[0].id);
-          }
-          chrome.action?.getBadgeText({}, () => {
-            if (!chrome.runtime.lastError) {
-              chrome.runtime.sendMessage({ action: "hotReload" });
-            }
-          });
-        });
-      };
-      watchChanges = (dir, lastTimestamp) => {
-        timestampForFilesInDirectory(dir).then((timestamp) => {
-          if (!lastTimestamp || lastTimestamp === timestamp) {
-            setTimeout(() => watchChanges(dir, timestamp), 1e3);
-          } else {
-            reload();
-          }
-        });
-      };
-      chrome.management.getSelf((self) => {
-        if (self.installType === "development") {
-          chrome.runtime.getPackageDirectoryEntry((dir) => watchChanges(dir));
-          console.log("\u{1F4A7} Hot reload activated!");
-        }
-      });
-    }
-  });
-
   // client/src/lib/utils.ts
   function isChromeExtension() {
     return typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id !== void 0;
@@ -132,15 +82,19 @@
 
   // client/src/background.ts
   try {
-    if (chrome.management) {
-      chrome.management.getSelf((self) => {
-        if (self.installType === "development") {
-          Promise.resolve().then(() => (init_hot_reload(), hot_reload_exports)).then(() => console.log("Hot reload activated!")).catch((err) => console.error("Hot reload failed:", err));
-        }
-      });
+    const isDevelopment = typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id;
+    if (isDevelopment) {
+      console.log("Development mode detected");
+      if (chrome.runtime && chrome.runtime.onMessage) {
+        chrome.runtime.onMessage.addListener((message) => {
+          if (message && message.action === "debug") {
+            console.log("Debug message received:", message.data);
+          }
+        });
+      }
     }
   } catch (error) {
-    console.log("Hot reload not available in this environment");
+    console.log("Development mode detection failed");
   }
   chrome.runtime.onInstalled.addListener(() => {
     chrome.storage.sync.set({
@@ -237,7 +191,7 @@
     }
     if (message.action === "removeFromWhitelist" && message.shortsId) {
       chrome.storage.sync.get({ whitelist: [], installationId: "" }, async (settings) => {
-        const whitelist = settings.whitelist.filter((id) => id !== message.shortsId);
+        const whitelist = settings.whitelist.filter((itemId) => itemId !== message.shortsId);
         chrome.storage.sync.set({ whitelist });
         if (settings.installationId) {
           try {

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Shorts Blocker - Advanced Options</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+    .tabs {
+      display: flex;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+    .tab.active {
+      border-bottom-color: #2196F3;
+      color: #2196F3;
+    }
+    .content {
+      margin-top: 20px;
+    }
+    .panel {
+      display: none;
+    }
+    .panel.active {
+      display: block;
+    }
+    h2 {
+      margin-top: 0;
+      font-size: 18px;
+      font-weight: 500;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      padding: 8px 16px;
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0b7dda;
+    }
+    .filter-list {
+      margin-top: 16px;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .filter-item {
+      padding: 12px;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .filter-item:last-child {
+      border-bottom: none;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+    .checkbox-group {
+      margin-bottom: 16px;
+    }
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .checkbox-container input {
+      margin-right: 8px;
+    }
+    .stat-card {
+      background-color: #f9f9f9;
+      padding: 16px;
+      border-radius: 4px;
+      margin-bottom: 16px;
+    }
+    .stat-number {
+      font-size: 24px;
+      font-weight: bold;
+      margin: 8px 0;
+      color: #2196F3;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="icon-48.svg" width="32" height="32" alt="YouTube Shorts Blocker">
+    <h1>YouTube Shorts Blocker - Advanced Options</h1>
+  </div>
+  
+  <div class="tabs">
+    <div class="tab active" data-tab="filters">Custom Filters</div>
+    <div class="tab" data-tab="categories">Categories</div>
+    <div class="tab" data-tab="whitelist">Whitelist</div>
+    <div class="tab" data-tab="statistics">Statistics</div>
+  </div>
+  
+  <div class="content">
+    <!-- Custom Filters Panel -->
+    <div class="panel active" id="filters-panel">
+      <h2>Custom Filters</h2>
+      <p>Create custom patterns to filter content beyond just Shorts.</p>
+      
+      <div class="form-group">
+        <label for="filter-pattern">Filter Pattern:</label>
+        <input type="text" id="filter-pattern" placeholder="E.g., '#trending' or 'live stream'">
+      </div>
+      
+      <button id="add-filter">Add Filter</button>
+      
+      <div class="filter-list" id="custom-filters-list">
+        <div class="filter-item">
+          <span>No custom filters yet</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Categories Panel -->
+    <div class="panel" id="categories-panel">
+      <h2>Category Filters</h2>
+      <p>Filter content by specific YouTube categories.</p>
+      
+      <div class="checkbox-group" id="category-list">
+        <div class="checkbox-container">
+          <input type="checkbox" id="cat-music">
+          <label for="cat-music">Music</label>
+        </div>
+        <div class="checkbox-container">
+          <input type="checkbox" id="cat-gaming">
+          <label for="cat-gaming">Gaming</label>
+        </div>
+        <div class="checkbox-container">
+          <input type="checkbox" id="cat-news">
+          <label for="cat-news">News & Politics</label>
+        </div>
+        <div class="checkbox-container">
+          <input type="checkbox" id="cat-howto">
+          <label for="cat-howto">How-to & Style</label>
+        </div>
+      </div>
+      
+      <button id="save-categories">Save Categories</button>
+    </div>
+    
+    <!-- Whitelist Panel -->
+    <div class="panel" id="whitelist-panel">
+      <h2>Whitelist</h2>
+      <p>Allow specific Shorts videos that you want to watch.</p>
+      
+      <div class="form-group">
+        <label for="whitelist-url">YouTube Shorts URL or ID:</label>
+        <input type="text" id="whitelist-url" placeholder="E.g., https://youtube.com/shorts/abcd1234 or abcd1234">
+      </div>
+      
+      <button id="add-whitelist">Add to Whitelist</button>
+      
+      <div class="filter-list" id="whitelist-items">
+        <div class="filter-item">
+          <span>No whitelisted items yet</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Statistics Panel -->
+    <div class="panel" id="statistics-panel">
+      <h2>Usage Statistics</h2>
+      <p>Track how many Shorts have been blocked or hidden.</p>
+      
+      <div class="stat-card">
+        <div>Shorts Blocked:</div>
+        <div class="stat-number" id="shorts-blocked">0</div>
+        <div>Times the extension prevented navigation to Shorts</div>
+      </div>
+      
+      <div class="stat-card">
+        <div>Shorts Hidden:</div>
+        <div class="stat-number" id="shorts-hidden">0</div>
+        <div>Shorts elements removed from the interface</div>
+      </div>
+      
+      <button id="reset-stats">Reset Statistics</button>
+    </div>
+  </div>
+  
+  <script src="options.js"></script>
+</body>
+</html>

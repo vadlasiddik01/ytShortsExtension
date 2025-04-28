@@ -1,31 +1,76 @@
 // YouTube Shorts Blocker Content Script
 
-// Define element selectors for YouTube Shorts
+// Define element selectors for YouTube Shorts - updated for 2025
 const YOUTUBE_SELECTORS = {
-  // Sidebar Shorts icon and label
-  SIDEBAR_SHORTS: 'ytd-guide-entry-renderer:has(a[title="Shorts"])',
+  // Sidebar Shorts icon and label (multiple selectors to ensure coverage)
+  SIDEBAR_SHORTS: `
+    ytd-guide-entry-renderer:has(a[title="Shorts"]), 
+    ytd-guide-entry-renderer:has(a[href="/shorts"]),
+    tp-yt-paper-item:has(yt-formatted-string:contains("Shorts")),
+    yt-chip-cloud-chip-renderer:has([href*="/shorts"])
+  `,
   
   // Shorts section in the home feed
-  FEED_SHORTS_SHELF: 'ytd-rich-section-renderer:has(#title:has-text("Shorts"))',
-  FEED_SHORTS_MINI_SHELF: 'ytd-reel-shelf-renderer',
+  FEED_SHORTS_SHELF: `
+    ytd-rich-section-renderer:has(#title:contains("Shorts")),
+    ytd-rich-section-renderer:has(#header-text:contains("Shorts")),
+    ytd-rich-section-renderer:has(.ytd-rich-section-renderer:contains("Shorts")),
+    ytd-reel-shelf-renderer
+  `,
+  FEED_SHORTS_MINI_SHELF: `
+    ytd-reel-shelf-renderer,
+    ytd-rich-grid-renderer:has(#title:contains("Shorts")),
+    ytd-rich-section-renderer:has(a[href*="/shorts"])
+  `,
   
   // Individual Shorts in grid format
-  SHORTS_GRID_ITEMS: 'ytd-grid-video-renderer:has(a[href*="/shorts/"])',
+  SHORTS_GRID_ITEMS: `
+    ytd-grid-video-renderer:has(a[href*="/shorts/"]),
+    ytd-rich-item-renderer:has(a[href*="/shorts/"]),
+    ytd-video-renderer:has(a[href*="/shorts/"])
+  `,
   
   // Individual Shorts in the suggestions panel
-  SHORTS_SUGGESTIONS: 'ytd-compact-video-renderer:has(a[href*="/shorts/"])',
+  SHORTS_SUGGESTIONS: `
+    ytd-compact-video-renderer:has(a[href*="/shorts/"]),
+    ytd-video-renderer:has(a[href*="/shorts/"]),
+    ytd-compact-radio-renderer:has(a[href*="/shorts/"]),
+    ytd-item-section-renderer:has(a[href*="/shorts/"])
+  `,
   
   // Shorts in the search results
-  SHORTS_SEARCH_RESULTS: 'ytd-video-renderer:has(a[href*="/shorts/"])',
+  SHORTS_SEARCH_RESULTS: `
+    ytd-video-renderer:has(a[href*="/shorts/"]),
+    ytd-item-section-renderer:has(a[href*="/shorts/"]),
+    ytd-shelf-renderer:has(a[href*="/shorts/"])
+  `,
   
   // Shorts thumbnails in various formats
-  SHORTS_THUMBNAILS: 'a[href*="/shorts/"]',
+  SHORTS_THUMBNAILS: `
+    a[href*="/shorts/"],
+    ytd-thumbnail-overlay-time-status-renderer[overlay-style="SHORTS"],
+    yt-formatted-string:has-text("Shorts")
+  `,
   
   // Video categories (for filtering)
-  VIDEO_CATEGORY: 'ytd-video-renderer:has(#video-title:has-text("{category}"))',
+  VIDEO_CATEGORY: `
+    ytd-video-renderer:has(#video-title:contains("{category}")),
+    ytd-compact-video-renderer:has(#video-title:contains("{category}"))
+  `,
   
   // Video category metadata
-  CATEGORY_CHIP: '#text.ytd-channel-name:contains("{category}")',
+  CATEGORY_CHIP: `
+    #text.ytd-channel-name:contains("{category}"),
+    yt-formatted-string:contains("{category}")
+  `,
+  
+  // Shorts player on /shorts/ page 
+  SHORTS_PLAYER: `
+    ytd-shorts, 
+    ytd-shorts-player-renderer,
+    ytd-reel-video-renderer,
+    shorts-video
+  `
 };
 
 // Interface for custom filter rule
@@ -64,6 +109,38 @@ const HIDE_SHORTS_CSS = `
   ${YOUTUBE_SELECTORS.SHORTS_SEARCH_RESULTS} {
     display: none !important;
   }
+  
+  /* Hide any elements containing Shorts in the text */
+  yt-formatted-string:contains("Shorts"),
+  span:contains("Shorts"),
+  div[aria-label*="Shorts"],
+  a[aria-label*="Shorts"] {
+    display: none !important;
+  }
+  
+  /* Hide anything with "shorts" in the class or id */
+  [class*="shorts"],
+  [id*="shorts"],
+  [data-content-type="shorts"] {
+    display: none !important;
+  }
+  
+  /* Hide shorts player */
+  ${YOUTUBE_SELECTORS.SHORTS_PLAYER} {
+    display: none !important;
+  }
+  
+  /* Hide elements with shorts URL */
+  a[href*="/shorts/"] {
+    display: none !important;
+  }
+  
+  /* Hide shorts chips and tabs */
+  yt-chip-cloud-chip-renderer[chip-style="STYLE_HOME_FILTER"][title="Shorts"],
+  yt-chip-cloud-chip-renderer:has(span:contains("Shorts")),
+  tp-yt-paper-tab:has(yt-formatted-string:contains("Shorts")) {
+    display: none !important;
+  }
 `;
 
 // Function to create and inject CSS
@@ -98,30 +175,125 @@ function removeInjectedCSS(): void {
 
 // Function to block clicking on Shorts links
 function blockShortsLinks(enabled?: boolean): void {
+  console.log('YouTube Shorts Blocker: Setting up click blocking:', enabled);
+  
   if (enabled !== true) {
     // Remove existing event listeners by replacing cloned elements
     document.querySelectorAll('[data-shorts-blocked="true"]').forEach(element => {
-      const clone = element.cloneNode(true) as HTMLElement;
-      clone.removeAttribute('data-shorts-blocked');
-      element.parentNode?.replaceChild(clone, element);
+      try {
+        const clone = element.cloneNode(true) as HTMLElement;
+        clone.removeAttribute('data-shorts-blocked');
+        element.parentNode?.replaceChild(clone, element);
+      } catch (err) {
+        console.error('Error removing shorts blocks:', err);
+      }
     });
+    
+    // Also remove global click handler if it exists
+    if ((window as any).globalShortsBlockHandler) {
+      document.removeEventListener('click', (window as any).globalShortsBlockHandler, true);
+      delete (window as any).globalShortsBlockHandler;
+    }
+    
     return;
   }
 
-  // Function to intercept clicks
+  // Function to intercept clicks - more aggressive with path detection
   const blockClickHandler = (event: Event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    console.log('YouTube Shorts Blocker: Prevented navigation to Shorts');
-    return false;
+    // Check if the click target or any of its parents is a link to shorts
+    let element = event.target as HTMLElement;
+    let shortsLinkDetected = false;
+    
+    // Go up the DOM tree to find the closest anchor element
+    while (element && !shortsLinkDetected) {
+      if (element.tagName === 'A') {
+        const href = element.getAttribute('href');
+        if (href && href.includes('/shorts/')) {
+          shortsLinkDetected = true;
+          break;
+        }
+      }
+      
+      // Check for data attributes that might indicate shorts
+      if (element.dataset && 
+         (element.dataset.contentType === 'shorts' || 
+          element.classList.contains('shorts') || 
+          element.id.includes('shorts'))) {
+        shortsLinkDetected = true;
+        break;
+      }
+      
+      element = element.parentElement as HTMLElement;
+    }
+    
+    if (shortsLinkDetected) {
+      event.preventDefault();
+      event.stopPropagation();
+      console.log('YouTube Shorts Blocker: Prevented navigation to Shorts');
+      
+      // Show a notification to the user
+      const notification = document.createElement('div');
+      notification.style.position = 'fixed';
+      notification.style.top = '60px';
+      notification.style.left = '50%';
+      notification.style.transform = 'translateX(-50%)';
+      notification.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+      notification.style.color = 'white';
+      notification.style.padding = '10px 15px';
+      notification.style.borderRadius = '4px';
+      notification.style.zIndex = '9999';
+      notification.style.fontWeight = 'bold';
+      notification.style.fontSize = '14px';
+      notification.textContent = 'Shorts Blocked by YouTube Shorts Blocker';
+      
+      document.body.appendChild(notification);
+      
+      // Remove notification after 2 seconds
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 2000);
+      
+      return false;
+    }
   };
 
-  // Add click handlers to all Shorts links
+  // Register global click handler for the entire document
+  if (!(window as any).globalShortsBlockHandler) {
+    (window as any).globalShortsBlockHandler = blockClickHandler;
+    document.addEventListener('click', blockClickHandler, true);
+  }
+
+  // Add specific markers to shorts links for styling
   const addBlockers = () => {
     document.querySelectorAll(YOUTUBE_SELECTORS.SHORTS_THUMBNAILS).forEach(element => {
       if (!(element as HTMLElement).dataset.shortsBlocked) {
-        element.addEventListener('click', blockClickHandler, true);
         (element as HTMLElement).dataset.shortsBlocked = 'true';
+        
+        // Add visual indicator
+        try {
+          const parent = element.closest('ytd-rich-item-renderer, ytd-grid-video-renderer, ytd-video-renderer, ytd-compact-video-renderer');
+          if (parent) {
+            (parent as HTMLElement).style.position = 'relative';
+            
+            const indicator = document.createElement('div');
+            indicator.textContent = 'SHORTS BLOCKED';
+            indicator.style.position = 'absolute';
+            indicator.style.top = '0';
+            indicator.style.left = '0';
+            indicator.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+            indicator.style.color = 'white';
+            indicator.style.padding = '2px 5px';
+            indicator.style.fontSize = '10px';
+            indicator.style.zIndex = '100';
+            indicator.style.pointerEvents = 'none';
+            
+            parent.appendChild(indicator);
+          }
+        } catch (err) {
+          console.warn('Could not add visual indicator:', err);
+        }
       }
     });
   };
@@ -174,8 +346,58 @@ function applySettings(hideShorts?: boolean, blockShorts?: boolean): void {
 
 // Function to block Shorts URL by redirecting to homepage
 function blockShortsURL(): void {
-  if (window.location.pathname.includes('/shorts/')) {
-    window.location.href = 'https://www.youtube.com/';
+  console.log('YouTube Shorts Blocker: Checking if current URL is a Shorts URL...');
+  
+  // More aggressive shorts detection
+  const isShorts = window.location.pathname.includes('/shorts/') || 
+                  document.querySelector(YOUTUBE_SELECTORS.SHORTS_PLAYER) !== null;
+  
+  if (isShorts) {
+    console.log('YouTube Shorts Blocker: Detected Shorts page, redirecting to homepage');
+    
+    // Try to modify the DOM to hide shorts before redirecting
+    try {
+      // Add immediate styles to hide shorts content
+      const shortsHidingStyle = document.createElement('style');
+      shortsHidingStyle.textContent = `
+        ${YOUTUBE_SELECTORS.SHORTS_PLAYER} { 
+          display: none !important; 
+          visibility: hidden !important;
+        }
+        
+        /* Hide any shorts container */
+        [class*="shorts"], [id*="shorts"] {
+          display: none !important;
+        }
+        
+        /* Create overlay to prevent interaction */
+        body::before {
+          content: "Blocking Shorts - Redirecting...";
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.7);
+          color: white;
+          font-size: 24px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+        }
+      `;
+      document.head.appendChild(shortsHidingStyle);
+      
+      // Redirect after a very short delay
+      setTimeout(() => {
+        window.location.href = 'https://www.youtube.com/';
+      }, 50);
+    } catch (err) {
+      console.error('Error blocking shorts:', err);
+      // If the DOM modification fails, just redirect
+      window.location.href = 'https://www.youtube.com/';
+    }
   }
 }
 
@@ -266,53 +488,78 @@ function applyCategoryFilters(categories: string[]): void {
 // Function to check if we're on a YouTube page and initialize the blocker
 function initBlocker(): void {
   if (document.location.hostname.includes('youtube.com')) {
-    // Get settings from Chrome storage
-    chrome.storage.sync.get<BlockerSettings>(
-      {
+    try {
+      // Get settings from Chrome storage
+      const defaultSettings: BlockerSettings = {
         hideShorts: true,  // Default
         blockShorts: false, // Default
         customFilters: [],
         categoryFilters: [],
         useStatistics: true,
         whitelist: []
-      },
-      (settings) => {
-        // Check if current shorts URL is whitelisted
-        const currentUrl = window.location.href;
-        const shortsId = getShortsIdFromUrl(currentUrl);
-        
-        if (shortsId && settings.whitelist?.includes(shortsId)) {
-          console.log(`Shorts ${shortsId} is whitelisted, not blocking.`);
-          return; // Don't apply blocking to whitelisted shorts
-        }
-        
-        // Apply basic settings
-        applySettings(settings.hideShorts, settings.blockShorts);
-        
-        // Apply custom filters if any
-        if (settings.customFilters && settings.customFilters.length > 0) {
-          applyCustomFilters(settings.customFilters);
-        }
-        
-        // Apply category filters if any
-        if (settings.categoryFilters && settings.categoryFilters.length > 0) {
-          applyCategoryFilters(settings.categoryFilters);
-        }
-        
-        // Track statistics for blocked content
-        if (settings.blockShorts === true && shortsId) {
-          const isShorts = window.location.pathname.includes('/shorts/');
-          if (isShorts) {
-            trackShortsStatistic('blocked', shortsId);
+      };
+      
+      // First try to get settings, with appropriate error handling
+      try {
+        chrome.storage.sync.get<BlockerSettings>(
+          defaultSettings,
+          (settings) => {
+            try {
+              // Check if current shorts URL is whitelisted
+              const currentUrl = window.location.href;
+              const shortsId = getShortsIdFromUrl(currentUrl);
+              
+              if (shortsId && settings.whitelist?.includes(shortsId)) {
+                console.log(`Shorts ${shortsId} is whitelisted, not blocking.`);
+                return; // Don't apply blocking to whitelisted shorts
+              }
+              
+              // Apply basic settings
+              applySettings(settings.hideShorts, settings.blockShorts);
+              
+              // Apply custom filters if any
+              if (settings.customFilters && settings.customFilters.length > 0) {
+                applyCustomFilters(settings.customFilters);
+              }
+              
+              // Apply category filters if any
+              if (settings.categoryFilters && settings.categoryFilters.length > 0) {
+                applyCategoryFilters(settings.categoryFilters);
+              }
+              
+              // Track statistics for blocked content
+              if (settings.blockShorts === true && shortsId) {
+                const isShorts = window.location.pathname.includes('/shorts/');
+                if (isShorts) {
+                  trackShortsStatistic('blocked', shortsId);
+                }
+              }
+              
+              // If block is enabled, check URL
+              if (settings.blockShorts === true) {
+                blockShortsURL();
+              }
+            } catch (err) {
+              console.error('Error in settings callback:', err);
+              // Apply default settings if something goes wrong
+              applySettings(true, false);
+            }
           }
-        }
-        
-        // If block is enabled, check URL
-        if (settings.blockShorts === true) {
-          blockShortsURL();
-        }
+        );
+      } catch (err) {
+        console.error('Error accessing Chrome storage:', err);
+        // Apply default settings if Chrome storage is inaccessible
+        applySettings(true, false);
       }
-    );
+    } catch (err) {
+      console.error('Critical error in initBlocker:', err);
+      // Even if everything fails, at least try to apply default settings
+      try {
+        applySettings(true, false);
+      } catch (finalErr) {
+        console.error('Could not apply default settings:', finalErr);
+      }
+    }
   }
 }
 
@@ -330,8 +577,15 @@ function trackShortsStatistic(type: string, shortsId: string): void {
         action: 'trackStatistic',
         statsType: type,
         shortsId
+      }, (response) => {
+        // Handle response if needed and ignore chrome.runtime.lastError
+        if (chrome.runtime.lastError) {
+          console.log('Error in trackShortsStatistic:', chrome.runtime.lastError.message);
+          // Extension may have been reloaded, we can silently fail
+        }
       });
     } catch (error) {
+      // Extension context may have been invalidated
       console.error('Error tracking statistic:', error);
     }
   }
@@ -345,10 +599,16 @@ async function isWhitelisted(shortsId: string): Promise<boolean> {
         chrome.runtime.sendMessage(
           { action: 'checkWhitelist', shortsId },
           (response) => {
+            if (chrome.runtime.lastError) {
+              console.log('Error checking whitelist:', chrome.runtime.lastError.message);
+              resolve(false);
+              return;
+            }
             resolve(response?.isWhitelisted || false);
           }
         );
       } catch (error) {
+        // Extension context may have been invalidated
         console.error('Error checking whitelist:', error);
         resolve(false);
       }
@@ -359,28 +619,45 @@ async function isWhitelisted(shortsId: string): Promise<boolean> {
 }
 
 // Listen for messages from the popup or background script
-chrome.runtime.onMessage.addListener((message: SettingsMessage) => {
-  if (message.action === 'settingsUpdated') {
-    // Apply basic settings
-    applySettings(message.hideShorts, message.blockShorts);
-    
-    // If block is enabled, check URL
-    if (message.blockShorts === true) {
-      blockShortsURL();
+try {
+  chrome.runtime.onMessage.addListener((message: SettingsMessage, sender, sendResponse) => {
+    try {
+      if (message.action === 'settingsUpdated') {
+        // Apply basic settings
+        applySettings(message.hideShorts, message.blockShorts);
+        
+        // If block is enabled, check URL
+        if (message.blockShorts === true) {
+          blockShortsURL();
+        }
+        
+        // Apply custom filters if provided
+        if (message.customFilters && message.customFilters.length > 0) {
+          applyCustomFilters(message.customFilters);
+        }
+        
+        // Apply category filters if provided
+        if (message.categoryFilters && message.categoryFilters.length > 0) {
+          applyCategoryFilters(message.categoryFilters);
+        }
+        
+        // Send success response
+        if (sendResponse) {
+          sendResponse({ success: true });
+        }
+      }
+    } catch (err) {
+      const error = err as Error;
+      console.error('Error handling message:', error);
+      if (sendResponse) {
+        sendResponse({ success: false, error: error.message || 'Unknown error occurred' });
+      }
     }
-    
-    // Apply custom filters if provided
-    if (message.customFilters && message.customFilters.length > 0) {
-      applyCustomFilters(message.customFilters);
-    }
-    
-    // Apply category filters if provided
-    if (message.categoryFilters && message.categoryFilters.length > 0) {
-      applyCategoryFilters(message.categoryFilters);
-    }
-  }
-  return true;
-});
+    return true;
+  });
+} catch (error) {
+  console.error('Error setting up message listener:', error);
+}
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', initBlocker);

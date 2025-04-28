@@ -1,20 +1,24 @@
 // YouTube Shorts Blocker Background Script
 import { updateStatistics, resetStatistics as resetApiStatistics, saveSettings } from './lib/apiClient';
 
-// Import hot-reload in development mode
+// Development mode detection
 try {
-  if (chrome.management) {
-    chrome.management.getSelf(self => {
-      if (self.installType === 'development') {
-        // Load hot-reload script
-        import('../public/hot-reload.js')
-          .then(() => console.log('Hot reload activated!'))
-          .catch(err => console.error('Hot reload failed:', err));
-      }
-    });
+  const isDevelopment = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
+  
+  if (isDevelopment) {
+    console.log('Development mode detected');
+    
+    // Add listener for development messages
+    if (chrome.runtime && chrome.runtime.onMessage) {
+      chrome.runtime.onMessage.addListener((message: any) => {
+        if (message && message.action === 'debug') {
+          console.log('Debug message received:', message.data);
+        }
+      });
+    }
   }
 } catch (error) {
-  console.log('Hot reload not available in this environment');
+  console.log('Development mode detection failed');
 }
 
 // Settings interface for type safety
@@ -182,7 +186,7 @@ chrome.runtime.onMessage.addListener((message: SettingsMessage, sender, sendResp
   // Remove a video from the whitelist
   if (message.action === 'removeFromWhitelist' && message.shortsId) {
     chrome.storage.sync.get({ whitelist: [], installationId: '' }, async (settings) => {
-      const whitelist = settings.whitelist.filter(id => id !== message.shortsId);
+      const whitelist = settings.whitelist.filter((itemId: string) => itemId !== message.shortsId);
       chrome.storage.sync.set({ whitelist });
       
       // Save updated whitelist to database if we have an installation ID
