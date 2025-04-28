@@ -6,7 +6,7 @@ import {
   aggregateStats, type AggregateStats
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 
 export interface IStorage {
@@ -80,7 +80,7 @@ export class MemStorage implements IStorage {
       firstInstalled: now,
       lastActive: now,
       version: installation.version,
-      browserInfo: installation.browserInfo
+      browserInfo: installation.browserInfo || null
     };
     this.installationsMap.set(installation.installationId, newInstallation);
     return newInstallation;
@@ -265,8 +265,8 @@ export class DatabaseStorage implements IStorage {
       // Update existing statistics
       const [updatedStats] = await db.update(statistics)
         .set({
-          shortsBlocked: existingStats.shortsBlocked + blockedDelta,
-          shortsHidden: existingStats.shortsHidden + hiddenDelta,
+          shortsBlocked: (existingStats.shortsBlocked || 0) + blockedDelta,
+          shortsHidden: (existingStats.shortsHidden || 0) + hiddenDelta,
           date: new Date()
         })
         .where(eq(statistics.installationId, installationId))
@@ -331,16 +331,17 @@ export class DatabaseStorage implements IStorage {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
     
+    // Use SQL for date comparison
     const [{ count: totalActive }] = await db
       .select({ count: installations.id })
       .from(installations)
-      .where(installations.lastActive > oneWeekAgo)
+      .where(sql`${installations.lastActive} > ${oneWeekAgo.toISOString()}`)
       .limit(1);
     
     // Calculate total shorts blocked and hidden
     const allStats = await db.select().from(statistics);
-    const totalShortsBlocked = allStats.reduce((sum, stat) => sum + stat.shortsBlocked, 0);
-    const totalShortsHidden = allStats.reduce((sum, stat) => sum + stat.shortsHidden, 0);
+    const totalShortsBlocked = allStats.reduce((sum, stat) => sum + (stat.shortsBlocked || 0), 0);
+    const totalShortsHidden = allStats.reduce((sum, stat) => sum + (stat.shortsHidden || 0), 0);
     
     // Insert aggregate stats
     await db.insert(aggregateStats)
