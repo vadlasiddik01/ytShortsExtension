@@ -1,6 +1,6 @@
 # YouTube Shorts Blocker Chrome Extension Setup
 
-This document explains how to build and install the YouTube Shorts Blocker Chrome extension from this codebase.
+This document explains how to build, package, and install the YouTube Shorts Blocker Chrome extension from this codebase.
 
 ## Building the Extension
 
@@ -8,10 +8,25 @@ This document explains how to build and install the YouTube Shorts Blocker Chrom
 
 2. Run the build script to create the extension:
    ```
+   chmod +x build-extension.sh
    ./build-extension.sh
    ```
 
 3. This will create an `extension-build` directory containing the compiled extension.
+
+## Packaging the Extension
+
+To create a distributable zip file for the Chrome Web Store or manual distribution:
+
+1. Run the packaging script:
+   ```
+   chmod +x package-extension.sh
+   ./package-extension.sh
+   ```
+
+2. This will create a zip file named `youtube-shorts-blocker-v{version}.zip` in the root directory.
+
+3. This zip file can be uploaded to the Chrome Web Store Developer Dashboard or distributed to users for manual installation.
 
 ## Installing the Extension in Chrome
 
