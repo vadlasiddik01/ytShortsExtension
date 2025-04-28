@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "YouTube Shorts Blocker",
   "version": "1.0.0",
-  "description": "Block and hide YouTube Shorts content",
+  "description": "Block and hide YouTube Shorts content with customizable filters",
   "action": {
     "default_popup": "index.html",
     "default_icon": {
@@ -19,13 +19,15 @@
   "permissions": [
     "storage",
     "tabs",
-    "scripting"
+    "scripting",
+    "management"
   ],
   "host_permissions": [
     "*://*.youtube.com/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "content_scripts": [
     {
@@ -36,9 +38,9 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["index.html"],
+      "resources": ["index.html", "hot-reload.js"],
       "matches": ["*://*.youtube.com/*"]
     }
   ],
-  "options_page": "index.html"
+  "options_page": "index.html?page=options"
 }

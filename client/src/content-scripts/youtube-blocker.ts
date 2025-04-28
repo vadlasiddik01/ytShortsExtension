@@ -20,7 +20,30 @@ const YOUTUBE_SELECTORS = {
   
   // Shorts thumbnails in various formats
   SHORTS_THUMBNAILS: 'a[href*="/shorts/"]',
+  
+  // Video categories (for filtering)
+  VIDEO_CATEGORY: 'ytd-video-renderer:has(#video-title:has-text("{category}"))',
+  
+  // Video category metadata
+  CATEGORY_CHIP: '#text.ytd-channel-name:contains("{category}")',
 };
+
+// Interface for custom filter rule
+interface FilterRule {
+  id: string;
+  pattern: string;
+  enabled: boolean;
+}
+
+// Interface for settings
+interface BlockerSettings {
+  hideShorts?: boolean;
+  blockShorts?: boolean;
+  customFilters?: FilterRule[];
+  categoryFilters?: string[];
+  useStatistics?: boolean;
+  whitelist?: string[];
+}
 
 // CSS to inject for hiding Shorts
 const HIDE_SHORTS_CSS = `
@@ -143,10 +166,16 @@ function blockShortsURL(): void {
   }
 }
 
-// Settings interface for type safety
-interface BlockerSettings {
+// Message interface for better type safety
+interface SettingsMessage {
+  action: string;
   hideShorts?: boolean;
   blockShorts?: boolean;
+  customFilters?: FilterRule[];
+  categoryFilters?: string[];
+  whitelist?: string[];
+  shortsId?: string;
+  statsType?: string;
 }
 
 // Function to check if we're on a YouTube page and initialize the blocker
@@ -170,21 +199,67 @@ function initBlocker(): void {
   }
 }
 
-// Define message type for better type safety
-interface SettingsMessage {
-  action: string;
-  hideShorts?: boolean;
-  blockShorts?: boolean;
+// Helper function to extract Shorts ID from URL
+function getShortsIdFromUrl(url: string): string | null {
+  const match = url.match(/\/shorts\/([^/?&]+)/);
+  return match ? match[1] : null;
 }
 
-// Listen for messages from the popup
+// Function to track shorts statistics
+function trackShortsStatistic(type: string, shortsId: string): void {
+  if (typeof chrome !== 'undefined' && chrome.runtime) {
+    try {
+      chrome.runtime.sendMessage({
+        action: 'trackStatistic',
+        statsType: type,
+        shortsId
+      });
+    } catch (error) {
+      console.error('Error tracking statistic:', error);
+    }
+  }
+}
+
+// Function to check if a shorts video is whitelisted
+async function isWhitelisted(shortsId: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+      try {
+        chrome.runtime.sendMessage(
+          { action: 'checkWhitelist', shortsId },
+          (response) => {
+            resolve(response?.isWhitelisted || false);
+          }
+        );
+      } catch (error) {
+        console.error('Error checking whitelist:', error);
+        resolve(false);
+      }
+    } else {
+      resolve(false);
+    }
+  });
+}
+
+// Listen for messages from the popup or background script
 chrome.runtime.onMessage.addListener((message: SettingsMessage) => {
   if (message.action === 'settingsUpdated') {
+    // Apply basic settings
     applySettings(message.hideShorts, message.blockShorts);
     
     // If block is enabled, check URL
     if (message.blockShorts === true) {
       blockShortsURL();
+    }
+    
+    // Apply custom filters if provided
+    if (message.customFilters && message.customFilters.length > 0) {
+      applyCustomFilters(message.customFilters);
+    }
+    
+    // Apply category filters if provided
+    if (message.categoryFilters && message.categoryFilters.length > 0) {
+      applyCategoryFilters(message.categoryFilters);
     }
   }
   return true;
