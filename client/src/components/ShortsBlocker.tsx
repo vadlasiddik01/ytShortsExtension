@@ -1,11 +1,13 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useBlockerContext } from '@/context/BlockerContext';
+import { isChromeExtension } from '@/lib/utils';
 
 export default function ShortsBlocker() {
   const { isHideShortsEnabled, isBlockShortsEnabled, isExtensionActive, toggleHideShorts, toggleBlockShorts } = useBlockerContext();
+  const [isMinimized, setIsMinimized] = useState(false);
 
   // Determine status class based on active state
   const statusClassName = isExtensionActive 
@@ -19,19 +21,77 @@ export default function ShortsBlocker() {
     }
     return "Extension is inactive (no options selected)";
   };
+  
+  // Handle Advanced Options click
+  const handleAdvancedOptionsClick = () => {
+    if (isChromeExtension()) {
+      try {
+        chrome.runtime.openOptionsPage();
+      } catch (error) {
+        console.error("Failed to open options page:", error);
+        // Fallback to opening index.html in a new tab
+        if (chrome && chrome.runtime) {
+          window.open(chrome.runtime.getURL('index.html?page=options'), '_blank');
+        }
+      }
+    } else {
+      console.log("Advanced options are only available in the Chrome extension");
+      // In development mode, navigate to the options page
+      window.location.href = '/options';
+    }
+  };
+
+  if (isMinimized) {
+    return (
+      <div className="w-72 p-3 shadow-lg bg-white">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <div className="w-6 h-6 mr-2 flex-shrink-0">
+              <div className="w-6 h-6 bg-[#FF0000] rounded-full flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+            </div>
+            <h1 className="text-sm font-bold text-[#282828]">YouTube Shorts Blocker</h1>
+          </div>
+          <button 
+            onClick={() => setIsMinimized(false)}
+            className="p-1 hover:bg-gray-100 rounded-full"
+            aria-label="Expand"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-72 p-4 shadow-lg bg-white">
       {/* Header */}
-      <div className="flex items-center mb-4 pb-3 border-b border-gray-200">
-        <div className="w-8 h-8 mr-2 flex-shrink-0">
-          <div className="w-8 h-8 bg-[#FF0000] rounded-full flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+      <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+        <div className="flex items-center">
+          <div className="w-8 h-8 mr-2 flex-shrink-0">
+            <div className="w-8 h-8 bg-[#FF0000] rounded-full flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
           </div>
+          <h1 className="text-lg font-bold text-[#282828]">YouTube Shorts Blocker</h1>
         </div>
-        <h1 className="text-lg font-bold text-[#282828]">YouTube Shorts Blocker</h1>
+        <button 
+          onClick={() => setIsMinimized(true)}
+          className="p-1 hover:bg-gray-100 rounded-full"
+          aria-label="Minimize"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
       </div>
 
       {/* Status Indicator */}
@@ -135,11 +195,7 @@ export default function ShortsBlocker() {
         <div>v1.0.0</div>
         <button 
           className="text-[#FF0000] hover:underline"
-          onClick={() => {
-            if (chrome && chrome.runtime) {
-              chrome.runtime.openOptionsPage();
-            }
-          }}
+          onClick={handleAdvancedOptionsClick}
         >
           Advanced Options
         </button>

@@ -61,8 +61,8 @@ function removeInjectedCSS(): void {
 }
 
 // Function to block clicking on Shorts links
-function blockShortsLinks(enabled: boolean): void {
-  if (!enabled) {
+function blockShortsLinks(enabled?: boolean): void {
+  if (enabled !== true) {
     // Remove existing event listeners by replacing cloned elements
     document.querySelectorAll('[data-shorts-blocked="true"]').forEach(element => {
       const clone = element.cloneNode(true) as HTMLElement;
@@ -122,9 +122,9 @@ function cleanupObservers(): void {
 }
 
 // Main function to apply settings
-function applySettings(hideShorts: boolean, blockShorts: boolean): void {
+function applySettings(hideShorts?: boolean, blockShorts?: boolean): void {
   // Apply or remove CSS for hiding Shorts
-  if (hideShorts) {
+  if (hideShorts === true) {
     if (!document.getElementById('yt-shorts-blocker-style')) {
       injectCSS(HIDE_SHORTS_CSS);
     }
@@ -133,7 +133,7 @@ function applySettings(hideShorts: boolean, blockShorts: boolean): void {
   }
 
   // Apply or remove click blocking for Shorts
-  blockShortsLinks(blockShorts);
+  blockShortsLinks(blockShorts === true);
 }
 
 // Function to block Shorts URL by redirecting to homepage
@@ -143,11 +143,17 @@ function blockShortsURL(): void {
   }
 }
 
+// Settings interface for type safety
+interface BlockerSettings {
+  hideShorts?: boolean;
+  blockShorts?: boolean;
+}
+
 // Function to check if we're on a YouTube page and initialize the blocker
 function initBlocker(): void {
   if (document.location.hostname.includes('youtube.com')) {
     // Get settings from Chrome storage
-    chrome.storage.sync.get(
+    chrome.storage.sync.get<BlockerSettings>(
       {
         hideShorts: true,  // Default
         blockShorts: false // Default
@@ -156,7 +162,7 @@ function initBlocker(): void {
         applySettings(settings.hideShorts, settings.blockShorts);
         
         // If block is enabled, check URL
-        if (settings.blockShorts) {
+        if (settings.blockShorts === true) {
           blockShortsURL();
         }
       }
@@ -164,13 +170,20 @@ function initBlocker(): void {
   }
 }
 
+// Define message type for better type safety
+interface SettingsMessage {
+  action: string;
+  hideShorts?: boolean;
+  blockShorts?: boolean;
+}
+
 // Listen for messages from the popup
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message: SettingsMessage) => {
   if (message.action === 'settingsUpdated') {
     applySettings(message.hideShorts, message.blockShorts);
     
     // If block is enabled, check URL
-    if (message.blockShorts) {
+    if (message.blockShorts === true) {
       blockShortsURL();
     }
   }
@@ -182,6 +195,23 @@ document.addEventListener('DOMContentLoaded', initBlocker);
 
 // Also run now in case DOM is already loaded
 initBlocker();
+
+// Run again when navigation happens within YouTube (SPA)
+window.addEventListener('yt-navigate-finish', () => {
+  console.log('YouTube navigation detected, reapplying settings');
+  initBlocker();
+});
+
+// Also listen for navigation events the standard way
+let lastUrl = location.href;
+new MutationObserver(() => {
+  const url = location.href;
+  if (url !== lastUrl) {
+    lastUrl = url;
+    console.log('URL changed to', url);
+    initBlocker();
+  }
+}).observe(document, { subtree: true, childList: true });
 
 // Cleanup when the content script is unloaded
 window.addEventListener('unload', () => {

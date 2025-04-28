@@ -29,18 +29,29 @@ export const BlockerProvider: React.FC<{children: ReactNode}> = ({ children }) =
   // Load settings from Chrome storage when component mounts
   useEffect(() => {
     const loadSettings = async () => {
-      if (chrome && chrome.storage) {
-        // Get saved settings from Chrome's storage
-        chrome.storage.sync.get(
-          {
-            hideShorts: true, // Default value
-            blockShorts: false // Default value
-          },
-          (items) => {
-            setIsHideShortsEnabled(items.hideShorts);
-            setIsBlockShortsEnabled(items.blockShorts);
-          }
-        );
+      // Check if Chrome extension API is available
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+        try {
+          // Get saved settings from Chrome's storage
+          chrome.storage.sync.get(
+            {
+              hideShorts: true, // Default value
+              blockShorts: false // Default value
+            },
+            (items) => {
+              if (items) {
+                setIsHideShortsEnabled(items.hideShorts === true);
+                setIsBlockShortsEnabled(items.blockShorts === true);
+              }
+            }
+          );
+        } catch (error) {
+          console.error('Error loading settings:', error);
+          // Use default values in case of error
+        }
+      } else {
+        console.log('Chrome API not available, using default settings');
+        // We're not in a Chrome extension context, use default values
       }
     };
 
@@ -52,23 +63,31 @@ export const BlockerProvider: React.FC<{children: ReactNode}> = ({ children }) =
     const newValue = !isHideShortsEnabled;
     setIsHideShortsEnabled(newValue);
     
-    if (chrome && chrome.storage) {
-      chrome.storage.sync.set({ hideShorts: newValue });
-      
-      // Send message to content script to update
-      if (chrome.tabs) {
-        chrome.tabs.query({ url: '*://*.youtube.com/*' }, (tabs) => {
-          tabs.forEach(tab => {
-            if (tab.id) {
-              chrome.tabs.sendMessage(tab.id, { 
-                action: 'settingsUpdated', 
-                hideShorts: newValue,
-                blockShorts: isBlockShortsEnabled
-              });
-            }
+    // Safe check for Chrome extension API
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+      try {
+        // Save to Chrome storage
+        chrome.storage.sync.set({ hideShorts: newValue });
+        
+        // Send message to content script to update
+        if (chrome.tabs) {
+          chrome.tabs.query({ url: '*://*.youtube.com/*' }, (tabs) => {
+            tabs.forEach(tab => {
+              if (tab.id) {
+                chrome.tabs.sendMessage(tab.id, { 
+                  action: 'settingsUpdated', 
+                  hideShorts: newValue,
+                  blockShorts: isBlockShortsEnabled
+                });
+              }
+            });
           });
-        });
+        }
+      } catch (error) {
+        console.error('Error saving settings or sending message:', error);
       }
+    } else {
+      console.log('Chrome API not available, settings saved locally only');
     }
   };
 
@@ -76,23 +95,31 @@ export const BlockerProvider: React.FC<{children: ReactNode}> = ({ children }) =
     const newValue = !isBlockShortsEnabled;
     setIsBlockShortsEnabled(newValue);
     
-    if (chrome && chrome.storage) {
-      chrome.storage.sync.set({ blockShorts: newValue });
-      
-      // Send message to content script to update
-      if (chrome.tabs) {
-        chrome.tabs.query({ url: '*://*.youtube.com/*' }, (tabs) => {
-          tabs.forEach(tab => {
-            if (tab.id) {
-              chrome.tabs.sendMessage(tab.id, { 
-                action: 'settingsUpdated', 
-                hideShorts: isHideShortsEnabled,
-                blockShorts: newValue
-              });
-            }
+    // Safe check for Chrome extension API
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+      try {
+        // Save to Chrome storage
+        chrome.storage.sync.set({ blockShorts: newValue });
+        
+        // Send message to content script to update
+        if (chrome.tabs) {
+          chrome.tabs.query({ url: '*://*.youtube.com/*' }, (tabs) => {
+            tabs.forEach(tab => {
+              if (tab.id) {
+                chrome.tabs.sendMessage(tab.id, { 
+                  action: 'settingsUpdated', 
+                  hideShorts: isHideShortsEnabled,
+                  blockShorts: newValue
+                });
+              }
+            });
           });
-        });
+        }
+      } catch (error) {
+        console.error('Error saving settings or sending message:', error);
       }
+    } else {
+      console.log('Chrome API not available, settings saved locally only');
     }
   };
 
