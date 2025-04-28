@@ -1,4 +1,5 @@
 // YouTube Shorts Blocker Background Script
+import { updateStatistics, resetStatistics as resetApiStatistics, saveSettings } from './lib/apiClient';
 
 // Import hot-reload in development mode
 try {
@@ -114,19 +115,33 @@ chrome.runtime.onMessage.addListener((message: SettingsMessage, sender, sendResp
   
   // Track statistics for shorts that are blocked or hidden
   if (message.action === 'trackStatistic' && message.statsType && message.shortsId) {
-    chrome.storage.sync.get({ useStatistics: true }, (settings) => {
+    chrome.storage.sync.get({ useStatistics: true, installationId: '' }, (settings) => {
       if (settings.useStatistics) {
         chrome.storage.local.get({ statistics: { shortsBlocked: 0, shortsHidden: 0, lastReset: Date.now() } }, 
-          (data) => {
+          async (data) => {
             const statistics: Statistics = data.statistics;
+            let blockedDelta = 0;
+            let hiddenDelta = 0;
             
             if (message.statsType === 'blocked') {
               statistics.shortsBlocked++;
+              blockedDelta = 1;
             } else if (message.statsType === 'hidden') {
               statistics.shortsHidden++;
+              hiddenDelta = 1;
             }
             
+            // Update local storage
             chrome.storage.local.set({ statistics });
+            
+            // Update statistics in the database if we have an installation ID
+            if (settings.installationId) {
+              try {
+                await updateStatistics(settings.installationId, blockedDelta, hiddenDelta);
+              } catch (error) {
+                console.error('Error updating statistics in database:', error);
+              }
+            }
           }
         );
       }
@@ -145,10 +160,19 @@ chrome.runtime.onMessage.addListener((message: SettingsMessage, sender, sendResp
   
   // Add a video to the whitelist
   if (message.action === 'addToWhitelist' && message.shortsId) {
-    chrome.storage.sync.get({ whitelist: [] }, (settings) => {
+    chrome.storage.sync.get({ whitelist: [], installationId: '' }, async (settings) => {
       if (!settings.whitelist.includes(message.shortsId)) {
         const whitelist = [...settings.whitelist, message.shortsId];
         chrome.storage.sync.set({ whitelist });
+        
+        // Save whitelist to database if we have an installation ID
+        if (settings.installationId) {
+          try {
+            await saveSettings(settings.installationId, { whitelist });
+          } catch (error) {
+            console.error('Error saving whitelist to database:', error);
+          }
+        }
       }
       sendResponse({ success: true });
     });
@@ -157,9 +181,19 @@ chrome.runtime.onMessage.addListener((message: SettingsMessage, sender, sendResp
   
   // Remove a video from the whitelist
   if (message.action === 'removeFromWhitelist' && message.shortsId) {
-    chrome.storage.sync.get({ whitelist: [] }, (settings) => {
+    chrome.storage.sync.get({ whitelist: [], installationId: '' }, async (settings) => {
       const whitelist = settings.whitelist.filter(id => id !== message.shortsId);
       chrome.storage.sync.set({ whitelist });
+      
+      // Save updated whitelist to database if we have an installation ID
+      if (settings.installationId) {
+        try {
+          await saveSettings(settings.installationId, { whitelist });
+        } catch (error) {
+          console.error('Error saving whitelist to database:', error);
+        }
+      }
+      
       sendResponse({ success: true });
     });
     return true;
@@ -177,13 +211,27 @@ chrome.runtime.onMessage.addListener((message: SettingsMessage, sender, sendResp
   
   // Reset statistics
   if (message.action === 'resetStatistics') {
-    const newStats = {
-      shortsBlocked: 0,
-      shortsHidden: 0,
-      lastReset: Date.now()
-    };
-    chrome.storage.local.set({ statistics: newStats });
-    sendResponse({ success: true });
+    chrome.storage.sync.get({ installationId: '' }, async (settings) => {
+      const newStats = {
+        shortsBlocked: 0,
+        shortsHidden: 0,
+        lastReset: Date.now()
+      };
+      
+      // Reset in local storage
+      chrome.storage.local.set({ statistics: newStats });
+      
+      // Reset in database if we have an installation ID
+      if (settings.installationId) {
+        try {
+          await resetApiStatistics(settings.installationId);
+        } catch (error) {
+          console.error('Error resetting statistics in database:', error);
+        }
+      }
+      
+      sendResponse({ success: true });
+    });
     return true;
   }
 });

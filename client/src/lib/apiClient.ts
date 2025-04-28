@@ -41,6 +41,9 @@ export async function saveSettings(installationId: string, settings: {
   hideShorts?: boolean;
   blockShorts?: boolean;
   useStatistics?: boolean;
+  customFilters?: any[];
+  categoryFilters?: string[];
+  whitelist?: string[];
 }): Promise<any> {
   try {
     // Only call the API if we're in development mode or running as a Chrome extension
