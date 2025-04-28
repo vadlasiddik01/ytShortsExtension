@@ -77,9 +77,22 @@ function injectCSS(cssText: string): HTMLStyleElement {
 
 // Function to remove injected CSS
 function removeInjectedCSS(): void {
+  // Remove main blocking style
   const styleElement = document.getElementById('yt-shorts-blocker-style');
   if (styleElement) {
     styleElement.remove();
+  }
+  
+  // Remove custom filter styles
+  const customFilterStyle = document.getElementById('yt-shorts-custom-filters-style');
+  if (customFilterStyle) {
+    customFilterStyle.remove();
+  }
+  
+  // Remove category filter styles
+  const categoryFilterStyle = document.getElementById('yt-category-filters-style');
+  if (categoryFilterStyle) {
+    categoryFilterStyle.remove();
   }
 }
 
@@ -178,6 +191,78 @@ interface SettingsMessage {
   statsType?: string;
 }
 
+// Function to apply custom filter rules
+function applyCustomFilters(filters: FilterRule[]): void {
+  // Only process enabled filters
+  const enabledFilters = filters.filter(f => f.enabled);
+  if (enabledFilters.length === 0) return;
+  
+  // Create CSS for custom filters
+  let customFilterCSS = '';
+  enabledFilters.forEach(filter => {
+    // Create a safe selector from the pattern
+    const safePattern = filter.pattern.replace(/"/g, '\\"');
+    customFilterCSS += `
+      /* Custom filter: ${filter.pattern} */
+      [title*="${safePattern}"],
+      span:contains("${safePattern}"),
+      yt-formatted-string:contains("${safePattern}") {
+        opacity: 0.3;
+        position: relative;
+      }
+      
+      [title*="${safePattern}"]:before,
+      span:contains("${safePattern}"):before,
+      yt-formatted-string:contains("${safePattern}"):before {
+        content: "Filtered: ${safePattern}";
+        position: absolute;
+        top: 0;
+        left: 0;
+        background: rgba(255, 0, 0, 0.7);
+        color: white;
+        padding: 2px 5px;
+        font-size: 10px;
+        z-index: 9999;
+      }
+    `;
+  });
+  
+  // Inject the custom filter CSS
+  if (customFilterCSS) {
+    const style = document.createElement('style');
+    style.id = 'yt-shorts-custom-filters-style';
+    style.textContent = customFilterCSS;
+    document.head.appendChild(style);
+  }
+}
+
+// Function to apply category filters
+function applyCategoryFilters(categories: string[]): void {
+  if (!categories.length) return;
+  
+  let categoryFilterCSS = '';
+  categories.forEach(category => {
+    const selector = YOUTUBE_SELECTORS.VIDEO_CATEGORY.replace('{category}', category);
+    const chipSelector = YOUTUBE_SELECTORS.CATEGORY_CHIP.replace('{category}', category);
+    
+    categoryFilterCSS += `
+      /* Category filter: ${category} */
+      ${selector},
+      ${chipSelector} {
+        display: none !important;
+      }
+    `;
+  });
+  
+  // Inject the category filter CSS
+  if (categoryFilterCSS) {
+    const style = document.createElement('style');
+    style.id = 'yt-category-filters-style';
+    style.textContent = categoryFilterCSS;
+    document.head.appendChild(style);
+  }
+}
+
 // Function to check if we're on a YouTube page and initialize the blocker
 function initBlocker(): void {
   if (document.location.hostname.includes('youtube.com')) {
@@ -185,10 +270,42 @@ function initBlocker(): void {
     chrome.storage.sync.get<BlockerSettings>(
       {
         hideShorts: true,  // Default
-        blockShorts: false // Default
+        blockShorts: false, // Default
+        customFilters: [],
+        categoryFilters: [],
+        useStatistics: true,
+        whitelist: []
       },
       (settings) => {
+        // Check if current shorts URL is whitelisted
+        const currentUrl = window.location.href;
+        const shortsId = getShortsIdFromUrl(currentUrl);
+        
+        if (shortsId && settings.whitelist?.includes(shortsId)) {
+          console.log(`Shorts ${shortsId} is whitelisted, not blocking.`);
+          return; // Don't apply blocking to whitelisted shorts
+        }
+        
+        // Apply basic settings
         applySettings(settings.hideShorts, settings.blockShorts);
+        
+        // Apply custom filters if any
+        if (settings.customFilters && settings.customFilters.length > 0) {
+          applyCustomFilters(settings.customFilters);
+        }
+        
+        // Apply category filters if any
+        if (settings.categoryFilters && settings.categoryFilters.length > 0) {
+          applyCategoryFilters(settings.categoryFilters);
+        }
+        
+        // Track statistics for blocked content
+        if (settings.blockShorts === true && shortsId) {
+          const isShorts = window.location.pathname.includes('/shorts/');
+          if (isShorts) {
+            trackShortsStatistic('blocked', shortsId);
+          }
+        }
         
         // If block is enabled, check URL
         if (settings.blockShorts === true) {
