@@ -1,28 +1,3 @@
-#!/bin/bash
-
-# Create extension build directory
-mkdir -p extension-build
-
-# Copy manifest file and icons (no need to wait for full build)
-echo "Copying static files..."
-cp client/public/manifest.json extension-build/
-cp client/public/icon-*.svg extension-build/
-cp client/public/hot-reload.js extension-build/
-
-# Create content-scripts directory
-mkdir -p extension-build/content-scripts
-
-# Build content scripts separately
-echo "Building content scripts..."
-npx esbuild client/src/content-scripts/youtube-blocker.ts --bundle --outfile=extension-build/content-scripts/youtube-blocker.js
-
-# Build background script separately
-echo "Building background script..."
-npx esbuild client/src/background.ts --define:process.env.NODE_ENV=\"production\" --bundle --outfile=extension-build/background.js
-
-# Copy popup HTML and create a simple build for it
-echo "Creating popup interface..."
-cat > extension-build/popup.html << 'EOL'
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -136,46 +111,3 @@ cat > extension-build/popup.html << 'EOL'
   <script src="popup.js"></script>
 </body>
 </html>
-EOL
-
-# Create a simple popup.js
-cat > extension-build/popup.js << 'EOL'
-// Get elements
-const hideShorts = document.getElementById('hideShorts');
-const blockShorts = document.getElementById('blockShorts');
-
-// Load settings on popup open
-chrome.storage.sync.get(['hideShorts', 'blockShorts'], (result) => {
-  hideShorts.checked = result.hideShorts || false;
-  blockShorts.checked = result.blockShorts || false;
-});
-
-// Save settings on toggle
-hideShorts.addEventListener('change', () => {
-  chrome.storage.sync.set({ hideShorts: hideShorts.checked });
-  chrome.tabs.query({ url: '*://*.youtube.com/*' }, (tabs) => {
-    tabs.forEach(tab => {
-      chrome.tabs.sendMessage(tab.id, {
-        action: 'updateSettings',
-        hideShorts: hideShorts.checked,
-        blockShorts: blockShorts.checked
-      });
-    });
-  });
-});
-
-blockShorts.addEventListener('change', () => {
-  chrome.storage.sync.set({ blockShorts: blockShorts.checked });
-  chrome.tabs.query({ url: '*://*.youtube.com/*' }, (tabs) => {
-    tabs.forEach(tab => {
-      chrome.tabs.sendMessage(tab.id, {
-        action: 'updateSettings',
-        hideShorts: hideShorts.checked,
-        blockShorts: blockShorts.checked
-      });
-    });
-  });
-});
-EOL
-
-echo "Extension build complete! Your extension is ready in the extension-build directory."
